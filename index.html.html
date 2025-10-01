@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Library</title>
+<style>
+body { font-family:'Arial',sans-serif; background:#f0f2f5; margin:0; padding:0;}
+.container { max-width:900px; margin:40px auto; padding:20px; background:white; border-radius:10px; box-shadow:0 0 15px rgba(0,0,0,0.1);}
+h1,h2 { text-align:center; }
+input, select, button { width:100%; padding:10px; margin:5px 0; border-radius:5px; border:1px solid #ccc; }
+button { 
+    background:#FF9933;  /* Kesari color */
+    color:white; 
+    cursor:pointer; 
+}
+button:hover { 
+    background:#FF7A00;  /* darker Kesari on hover */
+}
+table { border-collapse: collapse; width:100%; margin-top:10px; }
+th, td { padding:10px; text-align:left; border-bottom:1px solid #ddd; }
+.hidden { display:none; }
+.alert { color:red; text-align:center; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>Digital Library</h1>
+
+<!-- LOGIN -->
+<div id="loginBox">
+<h2>Login / Sign Up</h2>
+<select id="role" onchange="updateLoginFields()">
+    <option value="student">Student</option>
+    <option value="admin">Admin</option>
+</select>
+<input type="text" id="username" placeholder="Username">
+<input type="password" id="password" placeholder="Password">
+<button onclick="login()">Login</button>
+<button onclick="signup()">Sign Up (Admin Only)</button>
+<p class="alert" id="msg"></p>
+</div>
+
+<!-- ADMIN DASHBOARD -->
+<div id="adminDashboard" class="hidden">
+<h2>Admin Dashboard</h2>
+<button onclick="logout()">Logout</button>
+<button onclick="goBack()">Back</button>
+
+<h3>Books List</h3>
+<table id="adminBooksTable">
+<thead><tr><th>Title</th><th>Author</th><th>Edition</th><th>Copies</th></tr></thead>
+<tbody></tbody>
+</table>
+
+<h3>Add Book</h3>
+<input type="text" id="bookTitle" placeholder="Title">
+<input type="text" id="bookAuthor" placeholder="Author">
+<input type="number" id="bookEdition" placeholder="Edition">
+<input type="number" id="bookCopies" placeholder="Copies">
+<button onclick="addBook()">Add Book</button>
+
+<h3>Remove Copies of Book</h3>
+<input type="text" id="removeTitle" placeholder="Book Title">
+<input type="number" id="removeCopies" placeholder="Number of copies to remove">
+<button onclick="removeBook()">Remove Copies</button>
+
+<h3>Borrow Requests</h3>
+<table id="borrowRequestsTable">
+<thead><tr><th>Referral No</th><th>Student</th><th>Title</th><th>Due Date</th><th>Action</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+
+<!-- STUDENT DASHBOARD -->
+<div id="studentDashboard" class="hidden">
+<h2>Student Dashboard</h2>
+<button onclick="logout()">Logout</button>
+<button onclick="goBack()">Back</button>
+
+<h3>Search Book</h3>
+<input type="text" id="searchInput" placeholder="Search by title" oninput="renderBooks('student')">
+
+<h3>Available Books</h3>
+<table id="studentBooksTable">
+<thead><tr><th>Title</th><th>Author</th><th>Edition</th><th>Copies</th><th>Action</th></tr></thead>
+<tbody></tbody>
+</table>
+
+<h3>Your Borrowed Books</h3>
+<table id="borrowedBooksTable">
+<thead><tr><th>Referral No</th><th>Title</th><th>Author</th><th>Edition</th><th>Due Date</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+
+<script>
+// Admin and books
+let profiles = [{username:"admin", password:"1234", role:"admin"}];
+let books = [
+    {title:"C_Programming", author:"K&R", edition:2, copies:5},
+    {title:"Data_Structures", author:"Seymour", edition:3, copies:4},
+    {title:"Java_Basics", author:"Herbert_Schildt", edition:4, copies:6},
+    {title:"Python_Fundamentals", author:"Guido", edition:1, copies:3},
+    {title:"Digital_Electronics", author:"Morris_Mano", edition:2, copies:2},
+    {title:"Computer_Networks", author:"Tanenbaum", edition:5, copies:4},
+    {title:"DBMS_Concepts", author:"Korth", edition:3, copies:5},
+    {title:"Operating_Systems", author:"Galvin", edition:7, copies:3}
+];
+
+let borrowedBooks = [];
+let borrowRequests = [];
+let studentName = "";
+
+// Login fields
+function updateLoginFields(){
+    document.getElementById('password').style.display = document.getElementById('role').value==='student'?'none':'block';
+}
+
+// Login
+function login(){
+    const role = document.getElementById('role').value;
+    studentName = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const msg = document.getElementById('msg');
+
+    if(role==='admin'){
+        const user = profiles.find(u => u.username===studentName && u.password===password && u.role==='admin');
+        if(user){
+            msg.innerText='';
+            document.getElementById('loginBox').classList.add('hidden');
+            document.getElementById('adminDashboard').classList.remove('hidden');
+            renderBooks('admin');
+            renderBorrowRequests();
+        } else msg.innerText='Invalid admin username/password!';
+    } else {
+        if(studentName){
+            msg.innerText='';
+            document.getElementById('loginBox').classList.add('hidden');
+            document.getElementById('studentDashboard').classList.remove('hidden');
+            renderBooks('student');
+            renderBorrowedBooks();
+        } else msg.innerText='Enter student username!';
+    }
+}
+
+// Admin signup
+function signup(){
+    const username=document.getElementById('username').value.trim();
+    const password=document.getElementById('password').value.trim();
+    if(username && password){
+        if(profiles.some(u=>u.username===username)){
+            document.getElementById('msg').innerText='Username exists!';
+            return;
+        }
+        profiles.push({username,password,role:'admin'});
+        document.getElementById('msg').innerText='Admin signed up successfully!';
+    } else document.getElementById('msg').innerText='Enter username & password!';
+}
+
+// Logout/back
+function logout(){ goBack(); }
+function goBack(){
+    document.getElementById('adminDashboard').classList.add('hidden');
+    document.getElementById('studentDashboard').classList.add('hidden');
+    document.getElementById('loginBox').classList.remove('hidden');
+    document.getElementById('username').value='';
+    document.getElementById('password').value='';
+    document.getElementById('msg').innerText='';
+    studentName="";
+}
+
+// Render books
+function renderBooks(view){
+    const searchText = document.getElementById('searchInput')?.value.toLowerCase() || '';
+    const tableBody = document.querySelector(view==='admin'?'#adminBooksTable tbody':'#studentBooksTable tbody');
+    tableBody.innerHTML='';
+    books.forEach(b=>{
+        if(view==='student' && !b.title.toLowerCase().includes(searchText)) return;
+        let row=document.createElement('tr');
+        if(view==='admin'){
+            row.innerHTML=`<td>${b.title}</td><td>${b.author}</td><td>${b.edition}</td><td>${b.copies}</td>`;
+        } else {
+            row.innerHTML=`<td>${b.title}</td><td>${b.author}</td><td>${b.edition}</td><td>${b.copies}</td>
+            <td>${b.copies>0?`<button onclick="borrowBook('${b.title}')">Borrow</button>`:'Out of stock'}</td>`;
+        }
+        tableBody.appendChild(row);
+    });
+}
+
+// Admin functions
+function addBook(){
+    const title=document.getElementById('bookTitle').value.trim();
+    const author=document.getElementById('bookAuthor').value.trim();
+    const edition=parseInt(document.getElementById('bookEdition').value);
+    const copies=parseInt(document.getElementById('bookCopies').value);
+    if(title && author && edition && copies){
+        books.push({title,author,edition,copies});
+        renderBooks('admin');
+    }
+}
+
+function removeBook(){
+    const title=document.getElementById('removeTitle').value.trim();
+    const copiesToRemove=parseInt(document.getElementById('removeCopies').value);
+    const book=books.find(b=>b.title===title);
+    if(book){
+        if(copiesToRemove>=book.copies) books=books.filter(b=>b.title!==title);
+        else book.copies-=copiesToRemove;
+        renderBooks('admin');
+    } else alert('Book not found!');
+}
+
+// Borrow & return
+function borrowBook(title){
+    const book = books.find(b => b.title === title);
+    if(book && book.copies > 0){
+        book.copies--;
+        const ref = 'REF' + Math.floor(Math.random() * 100000);
+        
+        const today = new Date();
+        const dueDate = new Date();
+        dueDate.setDate(today.getDate() + 15);
+        const dueDateStr = dueDate.toLocaleDateString();
+
+        borrowedBooks.push({
+            ref,
+            title,
+            author: book.author,
+            edition: book.edition,
+            student: studentName,
+            borrowDate: today.toLocaleDateString(),
+            dueDate: dueDateStr
+        });
+        
+        borrowRequests.push({ref, student: studentName, title, dueDate: dueDateStr});
+        renderBooks('student');
+        renderBorrowedBooks();
+        renderBorrowRequests();
+        alert(`You borrowed "${title}".\nReferral No: ${ref}\nReturn on or before: ${dueDateStr}`);
+    } else alert('Book not available');
+}
+
+function returnBookAdmin(ref){
+    const index = borrowRequests.findIndex(r => r.ref === ref);
+    if(index>-1){
+        const req = borrowRequests[index];
+        const book = books.find(b=>b.title===req.title);
+        if(book) book.copies++;
+        else books.push({title:req.title, author: req.title, edition:1, copies:1});
+        borrowRequests.splice(index,1);
+        borrowedBooks.splice(borrowedBooks.findIndex(b=>b.ref===ref),1);
+        renderBorrowRequests();
+        renderBooks('admin');
+    }
+}
+
+// Render borrowed books (student)
+function renderBorrowedBooks(){
+    const tbody = document.querySelector('#borrowedBooksTable tbody');
+    tbody.innerHTML='';
+    borrowedBooks.forEach(b=>{
+        if(b.student !== studentName) return;
+        let row=document.createElement('tr');
+        row.innerHTML=`<td>${b.ref}</td><td>${b.title}</td><td>${b.author}</td><td>${b.edition}</td><td>${b.dueDate}</td>`;
+        tbody.appendChild(row);
+    });
+}
+
+// Render borrow requests (admin)
+function renderBorrowRequests(){
+    const tbody = document.querySelector('#borrowRequestsTable tbody');
+    tbody.innerHTML='';
+    borrowRequests.forEach(r=>{
+        let row=document.createElement('tr');
+        row.innerHTML=`<td>${r.ref}</td><td>${r.student}</td><td>${r.title}</td><td>${r.dueDate}</td>
+        <td><button onclick="returnBookAdmin('${r.ref}')">Mark as Returned</button></td>`;
+        tbody.appendChild(row);
+    });
+}
+
+// Init
+updateLoginFields();
+</script>
+</body>
+</html>
